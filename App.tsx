@@ -9,7 +9,7 @@ function App() {
   const [feelsLike, setFeelLike] = useState(undefined);
   const [minTemp, setMinTemp] = useState(undefined);
   const [maxTemp, setMaxTemp] = useState(undefined);
-  const [presure, setPresure] = useState(undefined);
+  const [pressure, setPressure] = useState(undefined);
   const [humidity, setHumidity] = useState(undefined);
   const [seaLevel, setSeaLevel] = useState(undefined);
   const [groundLevel, setGroundLevel] = useState(undefined);
@@ -26,6 +26,8 @@ function App() {
                 setFeelLike(data.main.feels_like);
                 setMinTemp(data.main.temp_min);
                 setMaxTemp(data.main.temp_max);
+                setPressure(data.main.pressure);
+                setHumidity(data.main.humidity);
                 setSeaLevel(data.main.sea_level);
                 setGroundLevel(data.main.grnd_level);
                 setUpdatingState(true);
@@ -48,6 +50,8 @@ function App() {
           <Text>Чувствуется как: {feelsLike === undefined ? 'Ошибка': feelsLike}</Text>
           <Text>Мин темп.: {minTemp === undefined ? 'Ошибка' : minTemp}</Text>
           <Text>Макс темп.:{maxTemp === undefined ? 'Ошибка' : maxTemp}</Text>
+          <Text>Давление:  {pressure === undefined ? 'Ошибка': pressure}</Text>
+          <Text>Влажность: {humidity === undefined ? 'Ошибка' : humidity}</Text>
           <Text>На уровене моря: {seaLevel === undefined ? 'Ошибка' : seaLevel}</Text>
           <Text>На Уровене земли {groundLevel === undefined ? 'Ошибка' : groundLevel}</Text>
           <Button
