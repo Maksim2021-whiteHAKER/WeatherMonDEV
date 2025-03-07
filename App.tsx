@@ -62,6 +62,7 @@ function App() {
   }
 
   function LoadedView(){
+
     return (
       <View style = {styles.container}>
         {error ? (
@@ -120,8 +121,7 @@ const styles = StyleSheet.create({
 
   buttonStyle: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
 
   textStyle: {
