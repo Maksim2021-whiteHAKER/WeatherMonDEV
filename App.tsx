@@ -9,17 +9,22 @@ const STATE_DATA_LOADED        = 2; // Данные загружены
 const STATE_DATA_ERROR         = 3; // Ошибка данных
 
 function App() {
+
   const [updatingDone, setUpdatingState] = useState(STATE_CALCULATE_LOCATION);
-  const currTemp = useRef(undefined);
-  const [feelsLike, setFeelLike] = useState(undefined);
-  const [minTemp, setMinTemp] = useState(undefined);
-  const [maxTemp, setMaxTemp] = useState(undefined);
-  const [pressure, setPressure] = useState(undefined);
-  const [humidity, setHumidity] = useState(undefined);
-  const [seaLevel, setSeaLevel] = useState(undefined);
-  const [groundLevel, setGroundLevel] = useState(undefined);
-  
+  const [currWeather, setCurrWeather] = useState<any>(null);
   const location:any = useRef(undefined);
+
+  function windAngleToDirection(angle: number){
+    if (angle < 22.5)  return 'Сев.';
+    if (angle < 67.5)  return 'С-В';
+    if (angle < 112.5) return 'Вост.';
+    if (angle < 157.5) return 'Ю-В';
+    if (angle < 202.5) return 'ЮГ';
+    if (angle < 247.5) return 'Ю-З';
+    if (angle < 292.5) return 'Зап.';
+    if (angle < 337.5) return 'С-З';
+    return 'Сев'
+  }
 
   interface FetchOptions extends RequestInit{
     timeout?: number;
@@ -93,15 +98,9 @@ function App() {
     .then((response) => {
       if (response.ok){
         response.json()
-        .then(data=>{
-          currTemp.current = data.main.temp;
-          setFeelLike(data.main.feels_like);
-          setMinTemp(data.main.temp_min);
-          setMaxTemp(data.main.temp_max);
-          setPressure(data.main.pressure);
-          setHumidity(data.main.humidity);
-          setSeaLevel(data.main.sea_level);
-          setGroundLevel(data.main.grnd_level);
+        .then((data)=>{
+          //console.log('Данные получены:', data)
+          setCurrWeather(data);
           setUpdatingState(STATE_DATA_LOADED);
         });
       }
@@ -122,7 +121,7 @@ function App() {
   function LoadingView(){
     return (
       <View style = {styles.awaitLoading}>
-        <Text>Обновление...</Text>
+        <Text>Обновление...⏳</Text>
       </View>
     )
   }
@@ -150,25 +149,39 @@ function App() {
       return (
       <View style = {styles.container}>
         <View style = {styles.infoScreen}>
-        <Text style = {styles.textStyle}>Текущая темп.: {currTemp.current === undefined ? 'Ошибка' : currTemp.current + '°C'}</Text>
-        <Text style = {styles.textStyle}>Чувствуется как: {feelsLike === undefined ? 'Ошибка' : feelsLike + '°C'}</Text>
-        <Text style = {styles.textStyle}>Мин темп.: {minTemp === undefined ? 'Ошибка' : minTemp + '°C'}</Text>
-        <Text style = {styles.textStyle}>Макс темп.: {maxTemp === undefined ? 'Ошибка' : maxTemp + '°C'}</Text>
-        <Text style = {styles.textStyle}>Давление: {pressure === undefined ? 'Ошибка' : pressure + ' рт.с'}</Text>
-        <Text style = {styles.textStyle}>Влажность: {humidity === undefined ? 'Ошибка' : humidity + '%'}</Text>
-        <Text style = {styles.textStyle}>На уровне моря: {seaLevel === undefined ? 'Ошибка' : seaLevel}</Text>
-        <Text style = {styles.textStyle}>На уровне земли: {groundLevel === undefined ? 'Ошибка' : groundLevel}</Text>
-      </View>
+        <ScreenRow param = {'Местоположение:'} value = {currWeather.name}/>
+        <ScreenRow param = {'Температура'} value = {currWeather.main.temp + '°C'}/>
+        <ScreenRow param = {'По ощущению'} value = {currWeather.main.feels_like + '°C'}/>
+        <ScreenRow param = {'Влажность:'} value = {currWeather.main.humidity + '%'}/>
+        <ScreenRow param = {'Небо:'} value = {currWeather.weather[0].description}/>
+        <ScreenRow param = {'Облачность:'} value = {currWeather.clouds.all + '%'}/>
+        <ScreenRow param = {'Давление:'} value = {currWeather.main.pressure * 0.75 + 'мм. рт.с'}/>
+        <ScreenRow param = {'Видимость:'} value = {currWeather.visibility + 'м.'}/>
+        <ScreenRow param = {'Ветер:'} value = {currWeather.wind.speed + 'м/сек - ' + windAngleToDirection(currWeather.wind.deg)}/>      
+        </View>
         <View style = {styles.buttonStyle}>
           <Button onPress={() => {
             setUpdatingState(STATE_CALCULATE_LOCATION);
-            currTemp.current = undefined;
+            currWeather.current = undefined;
           }}
           title='Обновить'></Button>
         </View>
       </View>
     )
   };
+
+  function ScreenRow(props:any){
+    return (
+      <View style={styles.paramRow}>
+        <View style={styles.paramName}>
+          <Text style={styles.textParamStyle}>{props.param}</Text>
+        </View>
+        <View style={styles.paramValue}>
+          <Text style={styles.textValueStyle}>{props.value}</Text>
+        </View>
+      </View>
+    )
+  }
 
   switch (updatingDone)
   {
@@ -232,6 +245,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20
-  }
+  },
+
+  paramRow: {
+    height: '10%',
+    flexDirection: 'row',
+  },
+
+  paramName: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: 10,
+    paddingLeft: 10,
+  },
+
+  paramValue: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: 10,
+    paddingLeft: 10,
+  },
+
+  textValueStyle: {
+    fontSize: 18,
+    color: 'black',
+  },
+
+  textParamStyle: {
+    fontSize: 18,
+    color: 'gray',
+  },
 
 })
