@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> <!-- Для Yandex Maps -->
 
     <application
       android:name=".MainApplication"
@@ -25,5 +25,8 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <meta-data
+      android:name="com.yandex.mapkit.API_KEY"
+      android:value="baddd321-f078-4366-ac14-164644cbeb95"/>
     </application>
 </manifest>
