@@ -1,20 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, Button, View, PermissionsAndroid} from 'react-native';
+import { StyleSheet, Text, View, PermissionsAndroid, TouchableOpacity, Image} from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import ScreenRow from '../Components/ScreenRow';
-import { calculateLocation, errorView, LoadingView } from './MainScreenStates';
+import { LoadingFromStorageView, LoadingView, CalculateLocation } from './MainScreenStates';
+import { storage } from '../store/storage';
+import SelectPositionBar from '../Components/selectposition';
+import { weatherImages } from '../const/imagesTags';
 
 // Состояния
-const STATE_CALCULATE_LOCATION = 0; // Вычисление местоположения
-const STATE_LOADING_DATA       = 1; // Загрузка данных
-const STATE_DATA_LOADED        = 2; // Данные загружены
-const STATE_DATA_ERROR         = 3; // Ошибка данных
+export const STATE_LOADING_FROM_STORAGE = 0;
+export const STATE_CALCULATE_LOCATION   = 1; // Вычисление местоположения
+export const STATE_LOADING_DATA         = 2; // Загрузка данных
+export const STATE_DATA_LOADED          = 3; // Данные загружены
+export const STATE_DATA_ERROR           = 4; // Ошибка данных
+export const STATE_DATA_EMPTY           = 5; // Данные пусты
 
-function MainScreen() {
+function MainScreen({navigation, route}) {
 
-  const [updatingDone, setUpdatingState] = useState(STATE_CALCULATE_LOCATION);
-  const [currWeather, setCurrWeather] = useState(null);
-  const location = useRef(undefined);
+  const errors = useRef(
+    {
+      locationError: {
+        active: false,
+        message: '',
+      },
+      networkError: {
+        active: false,
+        message: 'Ошибка сети',
+        responseCode: 0,
+      },
+    }
+  );
+
+  const [useCurrentPosition, setUseCurrentPosition] = useState(true);
+
+  const [dataState, setUpdatingState] = useState({
+    state: STATE_LOADING_FROM_STORAGE,
+    currWeather: null,
+    position: {
+      lat: 50,
+      lon: 50,
+    }
+  });
 
   function windAngleToDirection(angle){
     if (angle < 22.5)  return 'Сев.';
@@ -52,29 +78,31 @@ function MainScreen() {
       } catch (error) {return false}
   }
 
-  function getLocation(){
-    requestLocationPermission().then((res) => 
-      {
+ async function getLocation(){
+    if (useCurrentPosition) {
+      const res = await requestLocationPermission()
       console.log('Результат', res);
-      if (res)
-      {
+      if (res) {
         Geolocation.getCurrentPosition((position) => {
-            location.current = position;          
-            console.log('долгота', location.current.coords.longitude)
-            console.log('широта', location.current.coords.latitude)
-            setUpdatingState(STATE_LOADING_DATA);
+            console.log('долгота', position.coords.longitude)
+            console.log('широта', position.coords.latitude)
+            errors.current.locationError.active = false;            
+            setUpdatingState({...dataState, state: STATE_LOADING_DATA, position: {lat: position.coords.latitude, lon: position.coords.longitude}});
           },
           error => {
             console.log("Код: ошибки и сообщение:", error.code, error.message)
-            location.current = undefined;
+            errors.current.locationError.active = true;
+            errors.current.locationError.message = error.message
+            setUpdatingState({...dataState, state: STATE_DATA_ERROR})
           },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
         );
-      } else {
-        setUpdatingState(STATE_DATA_ERROR);
       }
-    });
+    } else {
+      setUpdatingState({...dataState, state: STATE_LOADING_DATA});
+    }
   }
+  
 
   async function fetchWithTimeout(resource, options = {}) {
     const {timeout = 10000} = options; /* время в миллисекундах 10 000мс = 10 секундам */
@@ -87,78 +115,159 @@ function MainScreen() {
     return response;
   }
 
-  function loadingData(){
-    if (!location.current || !location.current.coords){
-      setUpdatingState(STATE_DATA_ERROR);
-      return;
-    }
-    fetchWithTimeout(`https://api.openweathermap.org/data/2.5/weather?lat=${location.current?.coords.latitude}&lon=${location.current?.coords.longitude}&units=metric&lang=ru&APPID=df970160e8498542cb823c972d5a8b35`)
-    .then((response) => {
-      if (response.ok){
-        response.json()
-        .then((data)=>{
-          //console.log('Данные получены:', data)
-          setCurrWeather(data);
-          setUpdatingState(STATE_DATA_LOADED);
-        });
+  async function loadingFromStorage() {
+    if (!useCurrentPosition) {
+      try {
+        let ret = await storage.load({key: 'mapPosition', id: '1'});
+        console.log(ret);
+        setUpdatingState({state: STATE_LOADING_DATA, currWeather: null, position: ret});
+      } catch (err) {
+        console.warn(err.message);
+        setUpdatingState({...dataState, state: STATE_DATA_EMPTY});
       }
-    })
-    .catch((error) => setUpdatingState(STATE_DATA_ERROR)
-    );       
+    } else {
+      setUpdatingState({...dataState, state: STATE_CALCULATE_LOCATION});
+    }
   }
 
+  async function loadingData(pos){
+    //console.log("Позиция(pos): ", pos)
+    errors.current.networkError.active = false;
+    try {
+      let response = await fetchWithTimeout(`https://api.openweathermap.org/data/2.5/weather?lat=${pos?.lat}&lon=${pos?.lon}&units=metric&lang=ru&APPID=df970160e8498542cb823c972d5a8b35`, {timeout: 10000})
+      errors.current.networkError.responseCode = response.status;
+      if (response.ok){
+        let data = await response.json();
+        console.log('Данные: ',data)
+        setUpdatingState({...dataState, state: STATE_DATA_LOADED, currWeather: data})
+      } else {
+        errors.current.networkError.active = true;
+        errors.current.networkError.message = 'Invalid server response';
+        setUpdatingState({...dataState, state: STATE_DATA_ERROR, currWeather: null})
+      }
+    } catch (error) {
+      errors.current.networkError.active = true;
+      errors.current.networkError.message = error.message;
+      setUpdatingState({...dataState, state: STATE_DATA_ERROR, currWeather: null})
+    }       
+  }
+
+  useEffect(()=>{
+    if (route.params?.position !== undefined){
+      // Записать новые координаты в хранилище
+      storage.save({
+        key: 'mapPosition',
+        id:  '1',
+        data: route.params?.position,
+      })
+      setUpdatingState({...dataState, state: STATE_LOADING_FROM_STORAGE})
+      route.params.position = undefined;
+    }
+  }, [route.params?.position]);
 
   useEffect(() => {
-    if (updatingDone === STATE_CALCULATE_LOCATION){
+    if (dataState.state === STATE_LOADING_FROM_STORAGE){
+      loadingFromStorage();
+    } else if (dataState.state === STATE_CALCULATE_LOCATION){
       getLocation();
-    } else if (updatingDone === STATE_LOADING_DATA){
-      loadingData();
+    } else if (dataState.state === STATE_LOADING_DATA){
+      loadingData(dataState.position);
     }
-  }, [updatingDone]);
+  }, [dataState]);
 
-  function LoadedView(){
-      return (
-      <View style = {styles.container}>
-        <View style = {styles.infoScreen}>
-        <ScreenRow param = {'Местоположение:'} value = {currWeather.name}/>
-        <ScreenRow param = {'Температура'} value = {currWeather.main.temp + '°C'}/>
-        <ScreenRow param = {'По ощущению'} value = {currWeather.main.feels_like + '°C'}/>
-        <ScreenRow param = {'Влажность:'} value = {currWeather.main.humidity + '%'}/>
-        <ScreenRow param = {'Небо:'} value = {currWeather.weather[0].description}/>
-        <ScreenRow param = {'Облачность:'} value = {currWeather.clouds.all + '%'}/>
-        <ScreenRow param = {'Давление:'} value = {currWeather.main.pressure * 0.75 + 'мм. рт.с'}/>
-        <ScreenRow param = {'Видимость:'} value = {currWeather.visibility + 'м.'}/>
-        <ScreenRow param = {'Ветер:'} value = {currWeather.wind.speed + 'м/сек - ' + windAngleToDirection(currWeather.wind.deg)}/>      
-        </View>
-        <View style = {styles.buttonStyle}>
-          <Button onPress={() => {
-            setUpdatingState(STATE_CALCULATE_LOCATION);
-            currWeather.current = undefined;
-          }}
-          title='Обновить'></Button>
+  function errorView() {
+    return (
+      <View style={styles.infoScreen}>
+        <Image
+          style={styles.errorImageStyle}
+          source={require('../assets/icons/error.png')}
+        />
+        <Text>Ошибка...🤔</Text>
+        {errors?.current?.locationError?.active && (
+          <Text>
+            Ваше местоположение не определено.{'\n'}
+            Возможно отключена геолокация.{'\n'}
+            Исправьте это и повторите попытку.
+          </Text>
+        )}
+        {errors?.current?.networkError?.active && (
+          <Text>
+            Ошибка сети: {errors.current.networkError.message}
+            {errors.current.networkError.responseCode > 299
+              ? `\nКод ответа: ${errors.current.networkError.responseCode}`
+              : ''}
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  function LoadedView() {
+    let currWeather = dataState.currWeather; 
+    return (
+      <View style={styles.container}>
+        <SelectPositionBar
+          navigation={navigation}
+          position={dataState.position}
+          useCurrentPos={useCurrentPosition}
+          setCurrentPosHandler={setUseCurrentPosition}
+        />
+        {
+          dataState.state === STATE_DATA_EMPTY ? 
+          <View style={styles.infoScreen}>
+            <Text style={styles.textValueStyle}>
+              Позиция: не определена. Используйте своё местоположение или выберите точку на карте😊
+            </Text>
+          </View>
+          :
+          (dataState.state === STATE_DATA_ERROR) ?
+          errorView()
+          :
+          <View style={styles.container_weather}>
+            <View style={styles.infoScreen}>
+              <ScreenRow param={'Долгота'} value={currWeather.coord.lon} icon={weatherImages.lon}/>
+              <ScreenRow param={'Широта'} value={currWeather.coord.lat} icon={weatherImages.lat}/>
+              <ScreenRow param={'Местоположение:'} value={currWeather.name} icon={weatherImages.position} />
+              <ScreenRow param={'Температура'} value={currWeather.main.temp + '°C'} icon={weatherImages.temperature} />
+              <ScreenRow param={'По ощущению'} value={currWeather.main.feels_like + '°C'} icon={weatherImages.sens} />
+              <ScreenRow param={'Влажность:'} value={currWeather.main.humidity + '%'} icon={weatherImages.humidity} />
+              <ScreenRow param={'Небо:'} value={currWeather.weather[0].description} icon={weatherImages.sky}/>
+              <ScreenRow param={'Облачность:'} value={currWeather.clouds.all + '%'} icon={weatherImages.clouds}/>
+              <ScreenRow param={'Давление:'} value={currWeather.main.pressure * 0.75 + 'мм. рт.с'} icon={weatherImages.pressure}/>
+              <ScreenRow param={'Видимость:'} value={currWeather.visibility + 'м.'} icon={weatherImages.visibility}/>
+              <ScreenRow param={'Ветер:'} value={currWeather.wind.speed + 'м/сек - ' + windAngleToDirection(currWeather.wind.deg)} icon={weatherImages.wind}/>
+            </View>
+          </View>
+        }
+        <View style={styles.btnView}>
+          <TouchableOpacity style={styles.buttonStyle} onPress={() => {
+            setUpdatingState({ ...dataState, state: STATE_LOADING_FROM_STORAGE });
+          }}>
+            <Text style={{fontSize: 30}}>Обновить🔃</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    )
-  };
+    );
+  }
 
-  switch (updatingDone)
+  switch (dataState.state)
   {
-    case STATE_CALCULATE_LOCATION:
+    case STATE_LOADING_FROM_STORAGE:
       console.log('Состояние: определения местонахождения');
-      return calculateLocation();      
-    case STATE_LOADING_DATA:
+      return <LoadingFromStorageView/>;      
+    case STATE_CALCULATE_LOCATION:
       console.log('Состояние: загрузка данных')
-      return LoadingView();
-    case STATE_DATA_LOADED:
+      return <CalculateLocation/>;
+    case STATE_LOADING_DATA:
       console.log('Состояние: данные загружены')
-      return LoadedView();
+      return <LoadingView/>;
+    case STATE_DATA_LOADED:
+    case STATE_DATA_EMPTY:
     case STATE_DATA_ERROR:
-      console.log('Состояние: Ошибка')
-      return errorView();
+      return LoadedView();
     default:
         return <Text>Неизвестное состояние</Text>
   }
-
 }
 
 export default MainScreen;
@@ -166,9 +275,19 @@ export default MainScreen;
 const styles = StyleSheet.create({
 
   container: {
-    flex: 1,
-    padding: 20,
-    flexDirection: 'column'
+    flex: 1,  
+    flexDirection: 'column',
+    //borderColor: 'black',
+    //borderWidth: 2,
+  },
+
+  container_weather: {
+    flex: 2,  
+    flexDirection: 'column',
+    //borderColor: 'black',
+    //borderWidth: 2,
+    paddingTop: '-15%',
+    paddingLeft: '10%',
   },
 
   infoScreen: {
@@ -184,8 +303,20 @@ const styles = StyleSheet.create({
   },
 
   buttonStyle: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  }
-  
+    borderColor: 'gray',
+    borderWidth: 1,
+    borderRadius: 20,
+    backgroundColor: '#0f8a00b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '80%',
+    height: '70%',
+  },
+
+  errorImageStyle: {
+    resizeMode: 'center',
+    width: '50%',
+    height: '50%', 
+  },
+ 
 })

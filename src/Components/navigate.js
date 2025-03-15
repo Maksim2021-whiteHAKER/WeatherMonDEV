@@ -12,7 +12,7 @@ export default function Navigate(){
                 <Stack.Screen
                 name = "Main"
                 component = {MainScreen}
-                options={{title: 'Главная'}}
+                options={{title: 'Погода'}}
                 />
                 <Stack.Screen
                 name = "Map"

@@ -1,39 +1,84 @@
 import React from "react";
-import { StyleSheet, Text, Button, View, Switch } from "react-native";
+import { StyleSheet, Text, Button, View, Switch, TouchableOpacity } from "react-native";
 
 export default function SelectPositionBar({navigation, position, useCurrentPos, setCurrentPosHandler}){
 
+    const styles = StyleSheet.create({
+
+        settingsBar: {
+            flex: 1,
+            flexDirection:'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            alignContent: 'space-between',
+        },
+    
+        myPosSwitchText: {
+            fontSize: 12
+        },
+    
+        myPositionView: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+    
+        myPositionBtn: {
+            borderColor: 'gray',
+            borderWidth: 2,
+            borderRadius: 20,
+            backgroundColor: useCurrentPos ? '#4682b4' : 'white',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '95%',
+            height: '43%',
+        },
+    
+        myPositionBtnText: {
+            color: useCurrentPos ? 'white' : 'black',
+        },
+    
+        mapView: {
+            flex: 1,           
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+    
+        mapBtn: {
+            borderColor: 'gray',
+            borderWidth: 2,
+            borderRadius: 20,
+            backgroundColor: useCurrentPos ? '#4682b4' : 'white',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '95%',
+            height: '43%',
+        },
+    
+        mapBtnText: {
+            color: useCurrentPos ? 'white' : 'black',
+        }
+    })
+
     return (
         <View style={styles.settingsBar}>
-            <View style={{flex: 25, flexDirection: 'row', alignItems: 'center'}}>
-                <Switch trackColor={{false: '#767577', true: '#81b0ff'}}
-                onValueChange={() => {
-                    setCurrentPosHandler(previousState => !previousState);
-                }}
-                value = {useCurrentPos}/>
-                <Text style={styles.myPosSwitchText}>Использовать мою позицию</Text>
+            <View style={styles.myPositionView}>
+                <TouchableOpacity style={styles.myPositionBtn}
+                    onPress={()=>{
+                    setCurrentPosHandler(true)
+                }}>
+                    <Text style={styles.myPositionBtnText}>Моё местоположение</Text>
+                </TouchableOpacity>
             </View>
-            <View style={{flex: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
-                {!useCurrentPos && <Button onPress={()=>{
-                    navigation.navigate('Map', {position: position});
-                }} title="Карта"/>
-            }
+            <View style={styles.mapView}>
+                <TouchableOpacity style={styles.mapBtn}
+                onPress={()=>{
+                    setCurrentPosHandler(false);
+                    navigation.navigate('Map', {position: position})
+                }}>
+                    <Text style={styles.mapBtnText}>Место на карте</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-
-    settingsBar: {
-        flex: 1,
-        flexDirection:'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        alignContent: 'space-between',
-    },
-
-    myPosSwitchText: {
-        fontSize: 12
-    }
-})

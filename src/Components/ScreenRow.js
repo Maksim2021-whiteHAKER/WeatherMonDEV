@@ -6,20 +6,23 @@ import {StyleSheet, View, Text, Image} from 'react-native';
 export default function ScreenRow(props){
   return (
     <View style={styles.paramRow}>
+      <View style={styles.paramIcon}>
+        <Image style={styles.iconStyle} source={props.icon}/>
+      </View>
       <View style={styles.paramName}>
-        <Text style={styles.textParamStyle}>{props.param}</Text>
+        <Text styles={styles.textParamStyle}>{props.param}</Text>
       </View>
       <View style={styles.paramValue}>
-        <Text style={styles.textValueStyle}>{props.value}</Text>
+        <Text styles={styles.textValueStyle}>{props.value}</Text>
       </View>
     </View>
-  )
+  );
 }
 
   const styles = StyleSheet.create({
 
     paramRow: {
-      height: 45,
+      height: '9%',
       flexDirection: 'row',
       //borderColor: 'black',
       //borderWidth: 1,
@@ -27,7 +30,7 @@ export default function ScreenRow(props){
 
     paramIcon: {
       flex: 2,
-      paddingLeft: 5,
+      //paddingLeft: 5,
       justifyContent: 'center',
     },
 
@@ -47,7 +50,7 @@ export default function ScreenRow(props){
 
     iconStyle: {
       resizeMode: 'center',
-      width: '100%',
+      width: '45%',
     },
 
     textValueStyle: {
