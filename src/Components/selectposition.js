@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, Button, View, Switch, TouchableOpacity } from "react-native";
 
-export default function SelectPositionBar({navigation, position, useCurrentPos, setCurrentPosHandler}){
+export default function SelectPositionBar({navigation, position, useCurrentPos, setCurrentPosHandler, getLocation, onMyLocationPress}){
 
     const styles = StyleSheet.create({
 
@@ -25,6 +25,7 @@ export default function SelectPositionBar({navigation, position, useCurrentPos, 
     
         myPositionBtn: {
             borderColor: 'gray',
+            bottom: 20,
             borderWidth: 2,
             borderRadius: 20,
             backgroundColor: useCurrentPos ? '#4682b4' : 'white',
@@ -45,6 +46,7 @@ export default function SelectPositionBar({navigation, position, useCurrentPos, 
         },
     
         mapBtn: {
+            bottom: 20,
             borderColor: 'gray',
             borderWidth: 2,
             borderRadius: 20,
@@ -64,9 +66,7 @@ export default function SelectPositionBar({navigation, position, useCurrentPos, 
         <View style={styles.settingsBar}>
             <View style={styles.myPositionView}>
                 <TouchableOpacity style={styles.myPositionBtn}
-                    onPress={()=>{
-                    setCurrentPosHandler(true)
-                }}>
+                    onPress={onMyLocationPress}>
                     <Text style={styles.myPositionBtnText}>Моё местоположение</Text>
                 </TouchableOpacity>
             </View>

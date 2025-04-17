@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, PermissionsAndroid, TouchableOpacity, Image} from 'react-native';
+import { StyleSheet, Text, View, PermissionsAndroid, TouchableOpacity, Image, ViewComponent} from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import ScreenRow from '../Components/ScreenRow';
 import { LoadingFromStorageView, LoadingView, CalculateLocation } from './MainScreenStates';
@@ -36,11 +36,19 @@ function MainScreen({navigation, route}) {
   const [dataState, setUpdatingState] = useState({
     state: STATE_LOADING_FROM_STORAGE,
     currWeather: null,
-    position: {
-      lat: 50,
-      lon: 50,
-    }
+    position: {}
   });
+
+  const receivedPosition = route.params?.position || {};
+
+  useEffect(() => {
+    if (receivedPosition.lat && receivedPosition.lon){
+      setUpdatingState((prevState)=>({
+        ...prevState,
+        position: receivedPosition
+      }))      
+    }
+  }, [receivedPosition])
 
   function windAngleToDirection(angle){
     if (angle < 22.5)  return 'Сев.';
@@ -78,28 +86,82 @@ function MainScreen({navigation, route}) {
       } catch (error) {return false}
   }
 
- async function getLocation(){
-    if (useCurrentPosition) {
-      const res = await requestLocationPermission()
-      console.log('Результат', res);
-      if (res) {
-        Geolocation.getCurrentPosition((position) => {
-            console.log('долгота', position.coords.longitude)
-            console.log('широта', position.coords.latitude)
-            errors.current.locationError.active = false;            
-            setUpdatingState({...dataState, state: STATE_LOADING_DATA, position: {lat: position.coords.latitude, lon: position.coords.longitude}});
-          },
-          error => {
-            console.log("Код: ошибки и сообщение:", error.code, error.message)
-            errors.current.locationError.active = true;
-            errors.current.locationError.message = error.message
-            setUpdatingState({...dataState, state: STATE_DATA_ERROR})
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
+  async function myLocation() {
+    setUseCurrentPosition(true);
+    const res = await requestLocationPermission();
+    console.log('Результат запроса разрешения:', res);
+
+    if (res) {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          Geolocation.getCurrentPosition(
+            (position) => resolve(position.coords),
+            (error) => reject(error),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        });
+
+        const { latitude, longitude } = position;
+        console.log('Получены координаты через геолокацию:', { lat: latitude, lon: longitude });
+
+        storage.save({
+          key: 'default',
+          id: '1',
+          data: { lat: latitude, lon: longitude },
+        });
+
+        setUpdatingState({
+          ...dataState,
+          state: STATE_LOADING_DATA,
+          position: { lat: latitude, lon: longitude },
+        });
+      } catch (error) {
+        console.error('Ошибка получения местоположения:', error.message);
+        errors.current.locationError.active = true;
+        errors.current.locationError.message = error.message;
+        setUpdatingState({ ...dataState, state: STATE_DATA_ERROR });
       }
     } else {
-      setUpdatingState({...dataState, state: STATE_LOADING_DATA});
+      console.warn('Разрешение на геолокацию не получено');
+    }
+  }
+
+  async function getLocation(){
+      if (useCurrentPosition) {
+        const res = await requestLocationPermission()
+        console.log('Результат', res);
+        if (res) {
+          if (receivedPosition.lat && receivedPosition.lon){
+            console.log('используется receivedPosition', receivedPosition);
+            setUpdatingState({ 
+              ...dataState, 
+              state: STATE_LOADING_DATA,
+              position: {lat: receivedPosition.lat, lon: receivedPosition.lon},
+            });
+          } else {
+            console.log('receivedPosition Пуст, используется геолокация...')
+            Geolocation.getCurrentPosition(
+              (position) => {
+                const {latitude, longitude} = position.coords;
+                console.log('Местоположение обновлено геолокацией: Долгота-Широта', {lon: longitude, lat: latitude});
+                setUpdatingState({
+                  ...dataState, 
+                  state: STATE_LOADING_DATA, 
+                  position: {lat: latitude, lon: longitude}
+              });
+            },        
+            (error) => {
+              console.log("Код: ошибки и сообщение:", error.code, error.message)
+              errors.current.locationError.active = true;
+              errors.current.locationError.message = error.message
+              setUpdatingState({...dataState, state: STATE_DATA_ERROR})
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        }
+      } else {
+        setUpdatingState({...dataState, state: STATE_LOADING_DATA});
+      }
     }
   }
   
@@ -154,14 +216,17 @@ function MainScreen({navigation, route}) {
 
   useEffect(()=>{
     if (route.params?.position !== undefined){
-      // Записать новые координаты в хранилище
+      // Записать новые координаты в хранилище     
+
+      const storageKey = useCurrentPosition ? 'default' : 'mapPosition';
+
       storage.save({
-        key: 'mapPosition',
+        key: storageKey,
         id:  '1',
         data: route.params?.position,
       })
       setUpdatingState({...dataState, state: STATE_LOADING_FROM_STORAGE})
-      route.params.position = undefined;
+      //route.params.position = undefined;
     }
   }, [route.params?.position]);
 
@@ -211,6 +276,7 @@ function MainScreen({navigation, route}) {
           position={dataState.position}
           useCurrentPos={useCurrentPosition}
           setCurrentPosHandler={setUseCurrentPosition}
+          onMyLocationPress={myLocation}
         />
         {
           dataState.state === STATE_DATA_EMPTY ? 
@@ -277,11 +343,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,  
     flexDirection: 'column',
-    //borderColor: 'black',
-    //borderWidth: 2,
+  //  borderColor: 'black',
+  //  borderWidth: 2,
   },
 
   container_weather: {
+    bottom: 10,
     flex: 2,  
     flexDirection: 'column',
     //borderColor: 'black',
@@ -306,11 +373,12 @@ const styles = StyleSheet.create({
     borderColor: 'gray',
     borderWidth: 1,
     borderRadius: 20,
+    top: 10,
     backgroundColor: '#0f8a00b',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '80%',
-    height: '70%',
+    width: '70%',
+    height: '60%',
   },
 
   errorImageStyle: {

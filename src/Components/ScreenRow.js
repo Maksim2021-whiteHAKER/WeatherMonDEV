@@ -22,7 +22,7 @@ export default function ScreenRow(props){
   const styles = StyleSheet.create({
 
     paramRow: {
-      height: '9%',
+      height: '12%',
       flexDirection: 'row',
       //borderColor: 'black',
       //borderWidth: 1,
